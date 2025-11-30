@@ -14,12 +14,15 @@ import ru.otus.coroutineshomework.databinding.FragmentTimerBinding
 import java.util.Locale
 import kotlin.properties.Delegates
 import kotlin.time.Duration
+import kotlin.time.Duration.Companion.microseconds
 import kotlin.time.Duration.Companion.milliseconds
+import kotlin.time.Duration.Companion.nanoseconds
 
 class TimerFragment : Fragment() {
 
     private var _binding: FragmentTimerBinding? = null
     private val binding get() = _binding!!
+    private var timerJob: Job? = null
 
     private var time: Duration by Delegates.observable(Duration.ZERO) { _, _, newValue ->
         binding.time.text = newValue.toDisplayString()
@@ -76,10 +79,17 @@ class TimerFragment : Fragment() {
 
     private fun startTimer() {
         // TODO: Start timer
+        timerJob = lifecycleScope.launch {
+            while (isActive) {
+                delay(100)
+                time += 100.milliseconds
+            }
+        }
     }
 
     private fun stopTimer() {
         // TODO: Stop timer
+        timerJob?.cancel()
     }
 
     override fun onDestroyView() {
