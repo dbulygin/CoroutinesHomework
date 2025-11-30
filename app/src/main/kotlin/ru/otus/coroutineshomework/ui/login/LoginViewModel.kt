@@ -5,13 +5,21 @@ import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.flowOn
+import kotlinx.coroutines.flow.launchIn
+import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.launch
 import ru.otus.coroutineshomework.ui.login.data.Credentials
 
 class LoginViewModel : ViewModel() {
     private val api = LoginApi()
-    private val _state = MutableLiveData<LoginViewState>(LoginViewState.Login())
-    val state: LiveData<LoginViewState> = _state
+    private val _state = MutableStateFlow<LoginViewState>(LoginViewState.Login())
+    val state: StateFlow<LoginViewState> = _state
 
     /**
      * Login to the network
@@ -20,15 +28,9 @@ class LoginViewModel : ViewModel() {
      */
     fun login(name: String, password: String) {
         // TODO: Implement login
-        _state.value = LoginViewState.LoggingIn
-        viewModelScope.launch(Dispatchers.IO) {
-            try {
-                val user = api.login(Credentials(name, password))
-                _state.postValue(LoginViewState.Content(user))
-            } catch (e: Exception) {
-                _state.postValue(LoginViewState.Login(e))
-            }
-        }
+        loginFlow(name, password)
+            .onEach { _state.value = it}
+            .launchIn(viewModelScope)
     }
 
     /**
@@ -36,10 +38,22 @@ class LoginViewModel : ViewModel() {
      */
     fun logout() {
         // TODO: Implement logout
-        _state.value = LoginViewState.LoggingOut
-        viewModelScope.launch(Dispatchers.IO) {
-            api.logout()
-            _state.postValue(LoginViewState.Login())
-        }
+        logoutFlow()
+            .onEach { _state.value = it}
+            .launchIn(viewModelScope)
     }
+
+    private fun loginFlow(name: String, password: String): Flow<LoginViewState> = flow {
+        emit(LoginViewState.LoggingIn)
+        val user = api.login(Credentials(name, password))
+        emit(LoginViewState.Content(user))
+    }.catch { e ->
+        emit(LoginViewState.Login(e as Exception?))
+    }.flowOn(Dispatchers.IO)
+
+    private fun logoutFlow(): Flow<LoginViewState> = flow {
+        emit(LoginViewState.LoggingOut)
+        api.logout()
+        emit(LoginViewState.Login())
+    }.flowOn(Dispatchers.IO)
 }
